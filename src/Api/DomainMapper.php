@@ -13,6 +13,7 @@ class DomainMapper
     private $event;
     /** @var \Doctrine\ORM\EntityManager */
     private $entityManager;
+    private $settings;
     private $routes;
     private $siteIndicator = '/s/';
 
@@ -33,10 +34,12 @@ class DomainMapper
         'create-password',
         'forgot-password',
         // Compatibility with modules that have a route on root.
+        // Module Advanced Search: check paths configured by admin below.
         // Module Custom Ontology.
         'ns',
         // Module OAI-PMH Repository.
         'oai-pmh',
+        // TODO Module Search: check paths configured by admin.
     ];
 
     private $uri;
@@ -85,8 +88,17 @@ class DomainMapper
 
     private function isIgnoredRoute()
     {
+        $pathsToIgnore = implode('|', $this->ignoredRoutes);
+
+        $advancedSearchSlugs = $this->settings->get('advancedsearch_all_configs', []);
+        if ($advancedSearchSlugs) {
+            $pathsToIgnore .= '|' . implode('|', array_map(function ($v) {
+                return '\b' . $v . '\b';
+            }, $advancedSearchSlugs));
+        }
+
         $matches = [];
-        preg_match('#(' . implode('|', $this->ignoredRoutes) . ')#', $this->redirectUrl, $matches);
+        preg_match('#(' . $pathsToIgnore . ')#', $this->redirectUrl, $matches);
         return (bool) count($matches);
     }
 
@@ -614,7 +626,9 @@ class DomainMapper
     public function __construct(MvcEvent $event)
     {
         $this->event = $event;
-        $this->entityManager = $this->event->getApplication()->getServiceManager()->get('Omeka\EntityManager');
+        $services = $this->event->getApplication()->getServiceManager();
+        $this->entityManager = $services->get('Omeka\EntityManager');
+        $this->settings = $services->get('Omeka\Settings');
         $this->routes = [];
         $this->errors = [];
     }
