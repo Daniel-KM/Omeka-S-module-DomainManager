@@ -26,6 +26,7 @@ class DomainMapper
         'admin',
         'api',
         'api-context',
+        '/api-local',
         'install',
         'migrate',
         'maintenance',
@@ -33,13 +34,45 @@ class DomainMapper
         'logout',
         'create-password',
         'forgot-password',
+        // New routes for Omeka v4.
+        '/iiif-viewer',
+        '/search',
         // Compatibility with modules that have a route on root.
-        // Module Advanced Search: check paths configured by admin below.
+        // Module Access.
+        '/access/files/',
+        // Module Contact Us.
+        '/contact-us/zip/',
+        // Module Derivative Media.
+        '/derivative/',
+        // Module Iiif Presentation.
+        '/iiif-presentation/2',
+        '/iiif-presentation/3',
+        // Module Iiif Search.
+        '/iiif-search/',
+        // Module Iiif Server.
+        '/iiif/',
+        // Module Advanced Search: no need to check paths configured by admin.
         // Module Custom Ontology.
-        'ns',
-        // Module OAI-PMH Repository.
-        'oai-pmh',
-        // TODO Module Search: check paths configured by admin.
+        '/ns',
+        // Module OAI-PMH Repository (but there are by-site routes).
+        '/oai',
+        '/oai-pmh',
+        // TODO Module Search: check paths configured by admin?
+        // Module Sharing.
+        '/embed-item',
+        '/embed-media',
+        '/embed-page',
+        '/oembed',
+        // Module Sso.
+        '/sso',
+        // Module Sparql.
+        '/sparql/',
+        // Module Statistics.
+        '/download/files/',
+        // Module Timeline.
+        '/timeline/',
+        // Module XmlViewer.
+        '/xml/',
     ];
 
     private $uri;
@@ -138,12 +171,12 @@ class DomainMapper
     /**
      * @var \Laminas\Router\PriorityList $routes
      * @var \Laminas\Router\RouteInterface $route
-     * 
+     *
      */
     private function routeTemplate($routes)
     {
         $routeKey = "site";
-        
+
         /**
          * default route options
          */
@@ -185,7 +218,7 @@ class DomainMapper
                 'action' => 'show',
                 'site-slug' => $this->siteSlug,
                 'page-slug' => $this->defaultPage
-            ];        
+            ];
         }
 
         $controller = strtolower($rootRouteDefaults["controller"]);
@@ -314,7 +347,7 @@ class DomainMapper
                     if (isset($mappedRoutes[$routeKey]["child_routes"][$childRouteKey])) {
                         continue;
                     }
-                    
+
                     $childRouteArray["options"]["route"] = substr($childRouteArray["options"]["route"], 1);
 
                     /**
@@ -323,7 +356,7 @@ class DomainMapper
                     if (!isset($childRouteArray["options"]["defaults"]["controller"])) {
                         $childRouteArray["options"]["defaults"]["controller"] = "Index";
                     }
-                    
+
                     $childRouteArray["options"]["defaults"]["site-slug"]  = $this->siteSlug;
 
                     if (isset($childRouteArray["options"]["constraints"]) && stripos($childRouteArray["options"]["route"], ":controller") !== false) {
@@ -341,7 +374,7 @@ class DomainMapper
          * dynamically created routes
          * @var \Laminas\Router\PriorityList $routes
          * @var \Laminas\Router\RouteInterface $route
-         * 
+         *
          */
         foreach ($routes as $routeName => $route) {
             if (in_array($routeName, $ignoredRoutes)) {
@@ -363,13 +396,13 @@ class DomainMapper
             $routePath = '';
             if (isset($routeArray['parts'])) {
                 /**
-                 * The method assemble() is not available, because the site slug 
+                 * The method assemble() is not available, because the site slug
                  * is missing.
                  */
                 foreach ($routeArray['parts'] as $part) {
                     list($type, $path) = $part;
-                    
-                    /** 
+
+                    /**
                      * The module Scripto use another route format, at top
                      * level, but with optional site slug.
                      */
@@ -409,7 +442,7 @@ class DomainMapper
                 $mappedRoutes[$routeKey]['child_routes'][$routeName] = $newRoute;
             }
         }
-        
+
         return $mappedRoutes;
     }
 
@@ -489,7 +522,7 @@ class DomainMapper
             ->setParameter(1, $this->siteId)
             ->getQuery()
             ->getArrayResult();
-        
+
         if (count($defaultPage) > 0) {
             return $defaultPage[0]['slug'];
         }
@@ -499,7 +532,7 @@ class DomainMapper
                 return end($defaultPage);
             }
         }
-        
+
         return null;
     }
 
@@ -518,7 +551,7 @@ class DomainMapper
     public function createRoute($routes = null)
     {
         $domain = $this->getDomain();
-        
+
         if ($this->isIgnoredRoute() || is_null($domain)) {
             return;
         }
@@ -526,11 +559,11 @@ class DomainMapper
         $routes = is_null($routes) ? $this->router->getRoutes() : $routes;
         $this->routes[$this->siteSlug] = $this->routeTemplate($routes);
         $this->router->addRoutes($this->routes[$this->siteSlug]);
-        
+
         if ($this->isMyDomain() && substr($this->url, 0, 3) == $this->siteIndicator) {
             $this->redirectUrl = trim(preg_replace("#{$this->siteIndicator}|{$this->siteSlug}#", '', $this->url), '/');
         }
-        
+
         $doRedirect = false;
         $routeMatch = $this->router->match($this->event->getRequest());
 
@@ -540,7 +573,7 @@ class DomainMapper
             if($this->redirectUrl[0] != "/") {
                 $this->redirectUrl = "/" . $this->redirectUrl;
             }
-            
+
             $this->event->getRequest()->setUri($this->redirectUrl);
             $routeMatch = $this->router->match($this->event->getRequest());
         }
@@ -567,14 +600,14 @@ class DomainMapper
             if (strlen($this->redirectUrl) && strlen($this->query)) {
                 $this->redirectUrl = $this->redirectUrl . '?' . $this->query;
             }
-            
+
             /**
              * ensure we append the domain
              */
             if(!preg_match("#{$domain}#", $this->redirectUrl)) {
                 $this->redirectUrl = $domain . "/". $this->redirectUrl;
             }
-            
+
             if(strlen($this->redirectUrl) && $doRedirect) {
                 header("Location: {$this->redirectUrl}");
                 exit();
@@ -683,7 +716,7 @@ class DomainMapper
             $mapping_id = $row['mapping_id'];
             $site_id = $row['site_id'];
             $domain = $row['domain'];
-            
+
             if (strlen($domain) > 0) {
                 $validate = preg_match('#^(?!\-)(?:[a-zA-Z\d\-]{0,62}[a-zA-Z\d]\.){1,126}(?!\d+)[a-zA-Z\d]{1,63}$#', $domain);
 
